@@ -46,7 +46,8 @@ class TF_IDF:
             c_tf_idfs = {}
             for term, tf in term_value.items():
                 try:
-                    c_tf_idfs[term] = tf*self.term_idf[term] #take '{documtent_id: {term: value}}' from tfs and multiply every tf scroe with idf score for that document
+                    c_tf_i
+                    dfs[term] = tf*self.term_idf[term] #take '{documtent_id: {term: value}}' from tfs and multiply every tf scroe with idf score for that document
                 except:
                     no_idf_count += 1
             tf_idfs[document_id] = c_tf_idfs
