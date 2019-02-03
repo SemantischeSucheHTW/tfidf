@@ -13,10 +13,11 @@ class TF_IDF:
 
         self.n_docs = self.dao.getDocumentCount()
         term_count = self.dao.getAllWordsWithCounts()
-
+    
         for term, count in term_count.items():
             term_idf[term] = np.log10(self.n_docs / count)
             #term_idf[term] = self.n_docs / count
+            
         self.term_idf = term_idf
     
     def calcDoc_Term_TF(self):
@@ -46,13 +47,18 @@ class TF_IDF:
             c_tf_idfs = {}
             for term, tf in term_value.items():
                 try:
-                    c_tf_i
-                    dfs[term] = tf*self.term_idf[term] #take '{documtent_id: {term: value}}' from tfs and multiply every tf scroe with idf score for that document
+                    c_tf_idfs[term] = tf*self.term_idf[term] #take '{documtent_id: {term: value}}' from tfs and multiply every tf score with idf score for that document
                 except:
                     no_idf_count += 1
             tf_idfs[document_id] = c_tf_idfs
-                
+        
         self.tf_idfs = tf_idfs
+        
+        """c=0
+        for i, a in self.tf_idfs.items():
+            if c<10:
+                print(i, ":", a)
+                c+=1"""
     
     
     # input is a list of words
@@ -86,7 +92,7 @@ class TF_IDF:
             if (not possible_docids) or (docid in possible_docids):
                 keys_b = set(term_tf_idfs.keys())
                 intersection = keys_a & keys_b    #common words of input and respective document
-                if intersection:    
+                if intersection:
                     a = [] #tfidf values for respective document
                     b = [] #tfidf values for input
                     for key in intersection:
@@ -100,12 +106,13 @@ class TF_IDF:
                     sim = scalar_product/(d_a*d_b)
 
                     sims.append((docid, sim))
-
+        
         sims_sorted = sorted(sims, key=lambda x: x[1])[::-1]
         
         #possibly only return urls
         if not return_sims:
             sims_sorted = [s[0] for s in sims_sorted]
+        
         
         #return all results, when there is no requested amount
         if not n_results:
