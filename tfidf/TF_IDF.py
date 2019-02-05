@@ -1,17 +1,22 @@
 import numpy as np 
 
+#README
+#1. create an instance of it, this automatically builds the tf_idf vector for every document
+#2. call instance.getResultsForInput(...)
 class TF_IDF:
     
+    #the dao need a connection to the collections wordindex and pagedetails
     def __init__(self, dao):
         self.dao = dao
         self.term_idf = None
         self.doc_tfs = None
         self.tf_idfs = None
+        self.calcTF_IDFs()
         
     def calcTerm_IDF(self):
         term_idf = {}
 
-        self.n_docs = self.dao.getDocumentCount()
+        self.n_docs = self.dao.getDocumentCount() + 1
         term_count = self.dao.getAllWordsWithCounts()
     
         for term, count in term_count.items():
@@ -20,21 +25,41 @@ class TF_IDF:
             
         self.term_idf = term_idf
     
+    #takes a list of words
+    #returns a dict {term: tf, ...}
+    #throws an error if the wordlist is empty
+    def getTermFrequencies(words):
+        words_with_abs_counts = np.unique(words, return_counts=True)
+        max_count = np.max(words_with_abs_counts[1])
+        tfs = words_with_abs_counts[1]/max_count
+
+        term_tf = dict(zip(words_with_abs_counts[0], tfs))
+        return term_tf
+    
+    ###old implementation
+    #takes a list of words
+    #returns a dict {term: tf, ...}
+    #throws an error if the wordlist is empty
+    def getTermFrequencies_old(words):
+        n_words = len(words)
+        unique, counts = np.unique(words, return_counts=True)
+        term_tf= dict(zip(unique, counts / n_words))
+        return term_tf
+    
     def calcDoc_Term_TF(self):
         doc_tfs = {} #{documtent_id: {term: value}}
 
-        for doc in self.dao.pagedetails_collection.find({}, {"words":1}):
+        for doc in self.dao.getWordsFromPagedetails():
             try:
-                words = doc["words"]
-                n_words = len(words)
-
-                unique, counts = np.unique(words, return_counts=True)
-                term_tf= dict(zip(unique, counts / n_words))
+                words = doc["words"]  #get list of words for each document
+                
+                term_tf = TF_IDF.getTermFrequencies(words)
+                
                 doc_tfs[doc["_id"]] = term_tf
             except:
-                print("TF-IDF calculation: article contains no words")
+                print("TF-IDF calculation: TF calculation: article with url", {doc["_id"]}, "contains no words")
         self.doc_tfs = doc_tfs
-                
+    
     def calcTF_IDFs(self):
         self.calcTerm_IDF()
         self.calcDoc_Term_TF()
@@ -63,10 +88,8 @@ class TF_IDF:
     
     # input is a list of words
     def calcTF_IDF(self, user_input):
-        n_words = len(user_input)
         
-        unique, counts = np.unique(user_input, return_counts=True)
-        term_tf = dict(zip(unique, counts / n_words))
+        term_tf = TF_IDF.getTermFrequencies(user_input)
         
         tf_idfs = {}
         no_idf_count = 0
@@ -75,35 +98,42 @@ class TF_IDF:
                 tf_idfs[term] = tf*self.term_idf[term]
             except:
                 no_idf_count += 1
+                print("TF-IDF calculation: word in query", {term}, "is not in db")
                 
         return tf_idfs
     
+    #user_input: list of input words (lowercase)
+    #possible_docids: hand over a preselection of urls, the results will be based on that
+    #n_results: how many results do you want?
+    #return sims: also return similarities?
+    #returns a list of urls (and if requested a list of tuples(url, sim), cosine similarity is used)
     def getResultsForInput(self, user_input, possible_docids=None, n_results=None, return_sims=False):
-        tf_idf_input = self.calcTF_IDF(user_input)
+        input_term_tfidfs = self.calcTF_IDF(user_input)
 
-        keys_a = set(tf_idf_input.keys())
+        keys_a = set(input_term_tfidfs.keys())
 
         sims = []
 
         #determines cos similarity between input and every document in the database
-        for docid, term_tf_idfs in self.tf_idfs.items():
+        for docid, doc_term_tfidfs in self.tf_idfs.items():
 
             #only calculate cosine sim for candidate documents
             if (not possible_docids) or (docid in possible_docids):
-                keys_b = set(term_tf_idfs.keys())
+                keys_b = set(doc_term_tfidfs.keys())
                 intersection = keys_a & keys_b    #common words of input and respective document
-                if intersection:
+                if intersection:# and len(intersection)>min_equal_words:
                     a = [] #tfidf values for respective document
                     b = [] #tfidf values for input
                     for key in intersection:
-                        a.append(term_tf_idfs[key])
-                        b.append(tf_idf_input[key])
+                        a.append(doc_term_tfidfs[key])
+                        b.append(input_term_tfidfs[key])
 
                     scalar_product = np.dot(a, b)
-                    d_a = np.linalg.norm(list(tf_idf_input.values()))
-                    d_b = np.linalg.norm(list(term_tf_idfs.values()))
+                    d_a = np.linalg.norm(list(input_term_tfidfs.values()))
+                    d_b = np.linalg.norm(list(doc_term_tfidfs.values()))
 
                     sim = scalar_product/(d_a*d_b)
+                    #sim = scalar_product##################DEBUG##################
 
                     sims.append((docid, sim))
         
@@ -112,7 +142,6 @@ class TF_IDF:
         #possibly only return urls
         if not return_sims:
             sims_sorted = [s[0] for s in sims_sorted]
-        
         
         #return all results, when there is no requested amount
         if not n_results:
