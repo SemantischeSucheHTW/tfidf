@@ -24,7 +24,7 @@ class MongoDBDao(TF_IDF_DAO):
         return words_with_freqs
     
     #returns the total amount of documents
-    def getDocumentCount(self):
+    def getTotalDocumentCount(self):
         return self.pagedetails_collection.count_documents({})
     
     #returns a cursor for a dict of the form {_id: words}

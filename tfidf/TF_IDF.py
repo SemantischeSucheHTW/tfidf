@@ -1,29 +1,34 @@
 import numpy as np 
 
 #README
-#1. create an instance of it, this automatically builds the tf_idf vector for every document
+#1. create an instance of it, this automatically builds the TF-IDF vector for every document
 #2. call instance.getResultsForInput(...)
 class TF_IDF:
     
     #the dao need a connection to the collections wordindex and pagedetails
-    def __init__(self, dao):
+    def __init__(self, dao, verbose=True):
         self.dao = dao
-        self.term_idf = None
-        self.doc_tfs = None
-        self.tf_idfs = None
+        self.verbose=verbose
+        
+        self.term_idfs = None
+        self.doc_term_tfs = None
+        self.doc_term_tf_idfs = None #dict of dicts {documtent_id: {term: value}}
+        
         self.calcTF_IDFs()
         
-    def calcTerm_IDF(self):
-        term_idf = {}
+        
+    def calcTerm_IDFs(self):
+        term_idfs = {}
 
-        self.n_docs = self.dao.getDocumentCount() + 1
+        self.n_docs = self.dao.getTotalDocumentCount() + 1
         term_count = self.dao.getAllWordsWithCounts()
     
         for term, count in term_count.items():
-            term_idf[term] = np.log10(self.n_docs / count)
+            term_idfs[term] = np.log10(self.n_docs / count)
             #term_idf[term] = self.n_docs / count
             
-        self.term_idf = term_idf
+        self.term_idfs = term_idfs
+    
     
     #takes a list of words
     #returns a dict {term: tf, ...}
@@ -36,6 +41,7 @@ class TF_IDF:
         term_tf = dict(zip(words_with_abs_counts[0], tfs))
         return term_tf
     
+    
     ###old implementation
     #takes a list of words
     #returns a dict {term: tf, ...}
@@ -46,8 +52,9 @@ class TF_IDF:
         term_tf= dict(zip(unique, counts / n_words))
         return term_tf
     
-    def calcDoc_Term_TF(self):
-        doc_tfs = {} #{documtent_id: {term: value}}
+    
+    def calcDoc_Term_TFs(self):
+        doc_term_tfs = {} #{documtent_id: {term: value}}
 
         for doc in self.dao.getWordsFromPagedetails():
             try:
@@ -55,29 +62,32 @@ class TF_IDF:
                 
                 term_tf = TF_IDF.getTermFrequencies(words)
                 
-                doc_tfs[doc["_id"]] = term_tf
+                doc_term_tfs[doc["_id"]] = term_tf
             except:
-                print("TF-IDF calculation: TF calculation: article with url", {doc["_id"]}, "contains no words")
-        self.doc_tfs = doc_tfs
+                if self.verbose:
+                    print("TF-IDF calculation: TF calculation: article with url", {doc["_id"]}, "contains no words")
+        self.doc_term_tfs = doc_term_tfs
+    
     
     def calcTF_IDFs(self):
-        self.calcTerm_IDF()
-        self.calcDoc_Term_TF()
+        self.calcTerm_IDFs()
+        self.calcDoc_Term_TFs()
 
-        tf_idfs = {} #{documtent_id: {term: value}}
+        doc_term_tf_idfs = {} #{documtent_id: {term: value}}
 
         no_idf_count = 0
 
-        for document_id, term_value in self.doc_tfs.items():
-            c_tf_idfs = {}
+        for document_id, term_value in self.doc_term_tfs.items():
+            current_tf_idfs = {}
             for term, tf in term_value.items():
                 try:
-                    c_tf_idfs[term] = tf*self.term_idf[term] #take '{documtent_id: {term: value}}' from tfs and multiply every tf score with idf score for that document
+                    #take '{documtent_id: {term: value}}' from tfs and multiply every tf score with idf score for that document
+                    current_tf_idfs[term] = tf*self.term_idfs[term] 
                 except:
                     no_idf_count += 1
-            tf_idfs[document_id] = c_tf_idfs
+            doc_term_tf_idfs[document_id] = current_tf_idfs
         
-        self.tf_idfs = tf_idfs
+        self.doc_term_tf_idfs = doc_term_tf_idfs
         
         """c=0
         for i, a in self.tf_idfs.items():
@@ -95,12 +105,14 @@ class TF_IDF:
         no_idf_count = 0
         for term, tf in term_tf.items():
             try:
-                tf_idfs[term] = tf*self.term_idf[term]
+                tf_idfs[term] = tf*self.term_idfs[term]
             except:
                 no_idf_count += 1
-                print("TF-IDF calculation: word in query", {term}, "is not in db")
+                if self.verbose:
+                    print("TF-IDF calculation: word in query", {term}, "is not in db")
                 
         return tf_idfs
+    
     
     #user_input: list of input words (lowercase)
     #possible_docids: hand over a preselection of urls, the results will be based on that
@@ -115,7 +127,7 @@ class TF_IDF:
         sims = []
 
         #determines cos similarity between input and every document in the database
-        for docid, doc_term_tfidfs in self.tf_idfs.items():
+        for docid, doc_term_tfidfs in self.doc_term_tf_idfs.items():
 
             #only calculate cosine sim for candidate documents
             if (not possible_docids) or (docid in possible_docids):
@@ -152,3 +164,4 @@ class TF_IDF:
             return sims_sorted
         else:   #return the specified amount of results
             return sims_sorted[:n_results]
+        

@@ -1,5 +1,6 @@
 class TF_IDF_DAO:
 
+    #config must contain values for the keys "wordindex_collection" and "pagedetails_collection"
     def __init__(self, config):
         pass
     
@@ -8,7 +9,7 @@ class TF_IDF_DAO:
         pass
     
     #returns the total amount of documents
-    def getDocumentCount(self):
+    def getTotalDocumentCount(self):
         pass
     
     #returns a cursor for a dict of the form {_id: words}
