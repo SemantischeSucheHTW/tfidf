@@ -14,7 +14,6 @@ class MongoDBDao(TF_IDF_DAO):
         self.wortindex_collection = self.db[wordindex_collection]
         self.pagedetails_collection = self.db[pagedetails_collection]
 
-    #returns all words and how often they occur (as dict)
     def getAllWordsWithCounts(self):
         words_with_freqs = {}
 
@@ -23,14 +22,15 @@ class MongoDBDao(TF_IDF_DAO):
 
         return words_with_freqs
     
-    #returns the total amount of documents
     def getTotalDocumentCount(self):
         return self.pagedetails_collection.count_documents({})
     
-    #returns a cursor for a dict of the form {_id: words}
     def getWordsFromPagedetails(self):
-        return self.pagedetails_collection.find({}, {"words":1})
+        return list(self.pagedetails_collection.find({}, {"words":1}))
     
-    #returns pagedetails for a given url
     def getPageDetails(self, url):
-        return self.pagedetails_collection.find({"_id":url})
+        details = list(self.pagedetails_collection.find({"_id":url}))
+        if details:
+            return details[0]
+        else:
+            return None

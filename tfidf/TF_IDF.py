@@ -1,8 +1,8 @@
 import numpy as np 
 
 #README
-#1. create an instance of it, this automatically builds the TF-IDF vector for every document
-#2. call instance.getResultsForInput(...)
+#1. create an instance, this automatically builds the TF-IDF vector for every document
+#2. call instance.getResultsForInput(...) or instance.getSimilarArticles(...)
 class TF_IDF:
     
     #the dao need a connection to the collections wordindex and pagedetails
@@ -10,8 +10,8 @@ class TF_IDF:
         self.dao = dao
         self.verbose=verbose
         
-        self.term_idfs = None
-        self.doc_term_tfs = None
+        self.term_idfs = None #terms are lemmatized
+        self.doc_term_tfs = None #terms are not lemmatized!!??
         self.doc_term_tf_idfs = None #dict of dicts {documtent_id: {term: value}}
         
         self.calcTF_IDFs()
@@ -33,7 +33,7 @@ class TF_IDF:
     #takes a list of words
     #returns a dict {term: tf, ...}
     #throws an error if the wordlist is empty
-    def getTermFrequencies(words):
+    def getTermFrequencies(self, words):
         words_with_abs_counts = np.unique(words, return_counts=True)
         max_count = np.max(words_with_abs_counts[1])
         tfs = words_with_abs_counts[1]/max_count
@@ -46,7 +46,7 @@ class TF_IDF:
     #takes a list of words
     #returns a dict {term: tf, ...}
     #throws an error if the wordlist is empty
-    def getTermFrequencies_old(words):
+    def getTermFrequencies_old(self, words):
         n_words = len(words)
         unique, counts = np.unique(words, return_counts=True)
         term_tf= dict(zip(unique, counts / n_words))
@@ -60,12 +60,12 @@ class TF_IDF:
             try:
                 words = doc["words"]  #get list of words for each document
                 
-                term_tf = TF_IDF.getTermFrequencies(words)
+                term_tf = self.getTermFrequencies(words)
                 
                 doc_term_tfs[doc["_id"]] = term_tf
             except:
                 if self.verbose:
-                    print("TF-IDF calculation: TF calculation: article with url", {doc["_id"]}, "contains no words")
+                    print("TF-IDF module: initial TF calculation: article with url", {doc["_id"]}, "contains no words")
         self.doc_term_tfs = doc_term_tfs
     
     
@@ -87,6 +87,9 @@ class TF_IDF:
                     no_idf_count += 1
             doc_term_tf_idfs[document_id] = current_tf_idfs
         
+        if self.verbose and no_idf_count:
+            print("TF-IDF module: inital TF-IDF calculation: no idf for", {no_idf_count},"terms")
+            
         self.doc_term_tf_idfs = doc_term_tf_idfs
         
         """c=0
@@ -99,7 +102,11 @@ class TF_IDF:
     # input is a list of words
     def calcTF_IDF(self, user_input):
         
-        term_tf = TF_IDF.getTermFrequencies(user_input)
+        try:
+            term_tf = self.getTermFrequencies(user_input) 
+        except:
+            if self.verbose:
+                print("TF-IDF module: user input TF calculation: input contains no words")
         
         tf_idfs = {}
         no_idf_count = 0
@@ -109,7 +116,7 @@ class TF_IDF:
             except:
                 no_idf_count += 1
                 if self.verbose:
-                    print("TF-IDF calculation: word in query", {term}, "is not in db")
+                    print("TF-IDF module: user input TF-IDF calculation: word", {term}, "in query is not in db")
                 
         return tf_idfs
     
@@ -118,8 +125,9 @@ class TF_IDF:
     #possible_docids: hand over a preselection of urls, the results will be based on that
     #n_results: how many results do you want?
     #return sims: also return similarities?
+    #min_sim: is an article required to have a minimum similarity to the input?
     #returns a list of urls (and if requested a list of tuples(url, sim), cosine similarity is used)
-    def getResultsForInput(self, user_input, possible_docids=None, n_results=None, return_sims=False):
+    def getResultsForInput(self, user_input, possible_docids=None, n_results=None, return_sims=False, min_sim=None):
         input_term_tfidfs = self.calcTF_IDF(user_input)
 
         keys_a = set(input_term_tfidfs.keys())
@@ -145,9 +153,13 @@ class TF_IDF:
                     d_b = np.linalg.norm(list(doc_term_tfidfs.values()))
 
                     sim = scalar_product/(d_a*d_b)
-                    #sim = scalar_product##################DEBUG##################
 
-                    sims.append((docid, sim))
+                    #only add documents that meet the similarity requirement
+                    if min_sim:
+                        if sim >= min_sim:
+                            sims.append((docid, sim))
+                    else:
+                        sims.append((docid, sim))
         
         sims_sorted = sorted(sims, key=lambda x: x[1])[::-1]
         
@@ -165,3 +177,6 @@ class TF_IDF:
         else:   #return the specified amount of results
             return sims_sorted[:n_results]
         
+    def getSimilarArticles(self, url, n_results=2, return_sims=False, min_sim=0.2):
+        words = self.dao.getPageDetails(url)["words"]
+        return self.getResultsForInput(words, n_results=n_results, return_sims=return_sims, min_sim=min_sim)[1:]
