@@ -58,7 +58,7 @@ class TF_IDF:
 
         for doc in self.dao.getWordsFromPagedetails():
             try:
-                words = doc["words"]  #get list of words for each document
+                words = doc["lemma_words"]  #get list of words for each document
                 
                 term_tf = self.getTermFrequencies(words)
                 
@@ -178,5 +178,5 @@ class TF_IDF:
             return sims_sorted[:n_results]
         
     def getSimilarArticles(self, url, n_results=2, return_sims=False, min_sim=0.2):
-        words = self.dao.getPageDetails(url)["words"]
+        words = self.dao.getPageDetails(url)["lemma_words"]
         return self.getResultsForInput(words, n_results=n_results, return_sims=return_sims, min_sim=min_sim)[1:]

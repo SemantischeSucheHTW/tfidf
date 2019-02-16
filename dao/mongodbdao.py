@@ -26,7 +26,7 @@ class MongoDBDao(TF_IDF_DAO):
         return self.pagedetails_collection.count_documents({})
     
     def getWordsFromPagedetails(self):
-        return list(self.pagedetails_collection.find({}, {"words":1}))
+        return list(self.pagedetails_collection.find({}, {"lemma_words":1}))
     
     def getPageDetails(self, url):
         details = list(self.pagedetails_collection.find({"_id":url}))
