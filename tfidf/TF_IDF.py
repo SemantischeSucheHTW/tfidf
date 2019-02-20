@@ -10,8 +10,8 @@ class TF_IDF:
         self.dao = dao
         self.verbose=verbose
         
-        self.term_idfs = None #terms are lemmatized
-        self.doc_term_tfs = None #terms are not lemmatized!!??
+        self.term_idfs = None
+        self.doc_term_tfs = None
         self.doc_term_tf_idfs = None #dict of dicts {documtent_id: {term: value}}
         
         self.calcTF_IDFs()
@@ -178,5 +178,13 @@ class TF_IDF:
             return sims_sorted[:n_results]
         
     def getSimilarArticles(self, url, n_results=2, return_sims=False, min_sim=0.2):
-        words = self.dao.getPageDetails(url)["lemma_words"]
+        words = []
+        try:
+            words = self.dao.getPageDetails(url)["lemma_words"]
+        except KeyError:
+            if self.verbose:
+                print("TF-IDF module: similar articles calculation: article with url", {url}, "has no lemma_words")
+        except Exception as e:
+            print("Error with url", {url})
+            print(format(e))
         return self.getResultsForInput(words, n_results=n_results, return_sims=return_sims, min_sim=min_sim)[1:]
