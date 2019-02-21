@@ -23,6 +23,7 @@ class TF_IDF:
         self.n_docs = self.dao.getTotalDocumentCount() + 1
         term_count = self.dao.getAllWordsWithCounts()
     
+        #print("n_docs:", self.n_docs)
         for term, count in term_count.items():
             term_idfs[term] = np.log10(self.n_docs / count)
             #term_idf[term] = self.n_docs / count
