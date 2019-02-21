@@ -23,7 +23,7 @@ class TF_IDF:
         self.n_docs = self.dao.getTotalDocumentCount() + 1
         term_count = self.dao.getAllWordsWithCounts()
     
-        print("n_docs:", self.n_docs)
+        #print("n_docs:", self.n_docs)
         for term, count in term_count.items():
             term_idfs[term] = np.log10(self.n_docs / count)
             #term_idf[term] = self.n_docs / count
@@ -125,13 +125,21 @@ class TF_IDF:
     #user_input: list of input words (lowercase)
     #possible_docids: hand over a preselection of urls, the results will be based on that
     #n_results: how many results do you want?
-    #return sims: also return similarities?
+    #return sims: also return similarities for the result-URLs?
+    #similar_words_function: if a function - that returns similar words (with their similarites) for a given word - is handed over, these similar words will also be incorporated, if some words from the input are not in an article
     #min_sim: is an article required to have a minimum similarity to the input?
+    #
     #returns a list of urls (and if requested a list of tuples(url, sim), cosine similarity is used)
-    def getResultsForInput(self, user_input, possible_docids=None, n_results=None, return_sims=False, min_sim=None):
-        input_term_tfidfs = self.calcTF_IDF(user_input)
+    def getResultsForInput(self, 
+                           user_input, 
+                           possible_docids=None, 
+                           n_results=None, 
+                           similar_words_function=None, 
+                           return_sims=False, 
+                           min_sim=None
+                          ):
 
-        keys_a = set(input_term_tfidfs.keys())
+        keys_a = set(user_input)
 
         sims = []
 
@@ -142,12 +150,52 @@ class TF_IDF:
             if (not possible_docids) or (docid in possible_docids):
                 keys_b = set(doc_term_tfidfs.keys())
                 intersection = keys_a & keys_b    #common words of input and respective document
+                
+                #only continue if input and article have common words
                 if intersection:# and len(intersection)>min_equal_words:
-                    a = [] #tfidf values for respective document
-                    b = [] #tfidf values for input
+                    
+                    
+                    
+                    if similar_words_function:
+                        n_similar_words = 3
+                        
+                        if len(intersection) < len(keys_a):
+                            #1. look for words, present in the input, but not in the document
+                            words_that_need_similar_words = keys_a - intersection
+                            
+                            for word in words_that_need_similar_words:
+                                #2. get similar words for every one of these
+                                current_similar_words_with_sims = dict(similar_words_function(word, n_similar_words))
+                                current_similar_words = set(current_similar_words_with_sims.keys())
+                                
+                                #3. figure out which and how many of the found similar words occurr in the document
+                                common_similar_words = keys_b & current_similar_words
+                                n_common_similar_words = len(common_similar_words)
+                                
+                                #4. if there are similar words that help (i.e. also occurr in the document)
+                                if n_common_similar_words>0:
+                                    pseudo_value_for_word = 0
+                                    # ... calculate a pseudo TF-IDF value 
+                                    ## for the word that actually does not occurr in the document
+                                    for w in common_similar_words:
+                                        # ... from the TF-IDF of the similar words 
+                                        ## and their similarity to the word not occurring in the document
+                                        current_value = doc_term_tfidfs[w] * current_similar_words_with_sims[w]
+                                        pseudo_value_for_word += current_value
+                                    #5. put the pseudo TF-IDF value in the document at the place for 
+                                    ## the word not occurring in the document
+                                    doc_term_tfidfs[word] = pseudo_value_for_word/n_common_similar_words
+                                
+                                
+                    
+                    input_term_tfidfs = self.calcTF_IDF(user_input)
+                    
+                    
+                    a = [] #tfidf values for input
+                    b = [] #tfidf values for respective document
                     for key in intersection:
-                        a.append(doc_term_tfidfs[key])
-                        b.append(input_term_tfidfs[key])
+                        a.append(input_term_tfidfs[key])
+                        b.append(doc_term_tfidfs[key])
 
                     scalar_product = np.dot(a, b)
                     d_a = np.linalg.norm(list(input_term_tfidfs.values()))
@@ -177,6 +225,7 @@ class TF_IDF:
             return sims_sorted
         else:   #return the specified amount of results
             return sims_sorted[:n_results]
+        
         
     def getSimilarArticles(self, url, n_results=2, return_sims=False, min_sim=0.2):
         words = []
