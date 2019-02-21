@@ -19,6 +19,12 @@ class MongoDBDao(TF_IDF_DAO):
 
         for doc in self.wortindex_collection.find({}):
             words_with_freqs[doc["word"]] = len(doc["urls_counts"])
+            if doc["word"] == "mit":
+                print("mit url count:", len(doc["urls_counts"]))
+            if doc["word"] == "raub":
+                print("raub url count:", len(doc["urls_counts"]))
+            if doc["word"] == "die":
+                print("die url count:", len(doc["urls_counts"]))
 
         return words_with_freqs
     
