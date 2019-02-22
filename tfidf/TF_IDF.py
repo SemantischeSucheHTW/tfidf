@@ -136,16 +136,31 @@ class TF_IDF:
                            n_results=None, 
                            similar_words_function=None, 
                            return_sims=False, 
-                           min_sim=None
+                           min_sim=None,
+                           debug=False
                           ):
-
-        keys_a = set(user_input)
+        
+        input_term_tfidfs = self.calcTF_IDF(user_input)
+        if debug:
+            print("input_term_tfidfs:", input_term_tfidfs)
+        
+        keys_a = set(input_term_tfidfs) #do not use user_input for the keys, because some of the words may not occurr
 
         sims = []
 
         #determines cos similarity between input and every document in the database
         for docid, doc_term_tfidfs in self.doc_term_tf_idfs.items():
-
+            
+            
+            
+            
+            
+            if docid=="https://www.berlin.de/polizei/polizeimeldungen/pressemitteilung.449819.php":
+                debug=True
+                    
+                    
+            
+            
             #only calculate cosine sim for candidate documents
             if (not possible_docids) or (docid in possible_docids):
                 keys_b = set(doc_term_tfidfs.keys())
@@ -154,23 +169,50 @@ class TF_IDF:
                 #only continue if input and article have common words
                 if intersection:# and len(intersection)>min_equal_words:
                     
-                    
+                    if debug:
+                        print("original intersection:", intersection)
                     
                     if similar_words_function:
                         n_similar_words = 3
                         
+                        
+                        if debug:
+                            print("\n")
                         if len(intersection) < len(keys_a):
                             #1. look for words, present in the input, but not in the document
+                            if debug:
+                                print("keys_a", keys_a)
+                            if debug:
+                                print("intersection", intersection)
                             words_that_need_similar_words = keys_a - intersection
+                            if debug:
+                                print("words that need similar words:", words_that_need_similar_words)
                             
                             for word in words_that_need_similar_words:
                                 #2. get similar words for every one of these
-                                current_similar_words_with_sims = dict(similar_words_function(word, n_similar_words))
+                                if debug:
+                                    print("calling sim_words_func with word=", word, "n=", n_similar_words)
+                                ####w="polizeibeamter"
+                                ####print("word", word)
+                                ####print("w___", w)
+                                ####if w == word:
+                                ####    print("ATTENTION")
+                                ####similar_words_results = similar_words_function(w, n_similar_words)
+                                similar_words_results = similar_words_function(word, n_similar_words)
+                                if debug:
+                                    print("result from sim_words_func", similar_words_results)
+                                current_similar_words_with_sims = dict(similar_words_results)
+                                if debug:
+                                    print("dict form:", current_similar_words_with_sims)
                                 current_similar_words = set(current_similar_words_with_sims.keys())
+                                if debug:
+                                    print("found", current_similar_words, "for word", word)
                                 
                                 #3. figure out which and how many of the found similar words occurr in the document
                                 common_similar_words = keys_b & current_similar_words
                                 n_common_similar_words = len(common_similar_words)
+                                if debug:
+                                    print("n_common_similar_words -> additional similar words", n_common_similar_words)
                                 
                                 #4. if there are similar words that help (i.e. also occurr in the document)
                                 if n_common_similar_words>0:
@@ -184,11 +226,18 @@ class TF_IDF:
                                         pseudo_value_for_word += current_value
                                     #5. put the pseudo TF-IDF value in the document at the place for 
                                     ## the word not occurring in the document
-                                    doc_term_tfidfs[word] = pseudo_value_for_word/n_common_similar_words
+                                    pseudo_value_for_word = pseudo_value_for_word/n_common_similar_words
+                                    if debug:
+                                        print("calculated pseudo value:", pseudo_value_for_word)
+                                    doc_term_tfidfs[word] = pseudo_value_for_word
+                            
+                            #6. recalculate the intersection, since the article now has some "new" words
+                            keys_b = set(doc_term_tfidfs.keys())
+                            intersection = keys_a & keys_b
                                 
-                                
+                            if debug:
+                                print("new intersection:", intersection)
                     
-                    input_term_tfidfs = self.calcTF_IDF(user_input)
                     
                     
                     a = [] #tfidf values for input
@@ -197,6 +246,11 @@ class TF_IDF:
                         a.append(input_term_tfidfs[key])
                         b.append(doc_term_tfidfs[key])
 
+                     
+                    if debug:
+                        print("a is", a)
+                        print("b is", b)
+                    
                     scalar_product = np.dot(a, b)
                     d_a = np.linalg.norm(list(input_term_tfidfs.values()))
                     d_b = np.linalg.norm(list(doc_term_tfidfs.values()))
@@ -209,7 +263,15 @@ class TF_IDF:
                             sims.append((docid, sim))
                     else:
                         sims.append((docid, sim))
-        
+                        
+                        
+                        
+                        
+            debug=False
+            
+            
+            
+            
         sims_sorted = sorted(sims, key=lambda x: x[1])[::-1]
         
         #possibly only return urls
